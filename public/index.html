@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>おがわのデスクノート | PC周辺機器のレビューと選び方</title>
+  <meta name="description" content="キーボード、マウス、モニターなどPC周辺機器を実際に使って書くレビューブログ。">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <header class="site-header">
+    <a class="site-name" href="index.html">おがわのデスク</a>
+    <nav class="site-nav" aria-label="メインメニュー">
+      <a href="#articles">記事一覧</a>
+      <a href="#about">このブログについて</a>
+    </nav>
+  </header>
+
+  <main>
+    <!-- ヒーロー：カテゴリをキーキャップ風のボタンで表現 -->
+    <section class="hero">
+      <h1>周辺機器なら<br>おがわのデスク</h1>
+      <p class="hero-lead">キーボード、マウス、モニター。買う前に知りたかったことを、実際に使った感想から書いています。</p>
+
+      <div class="keys" role="group" aria-label="カテゴリで絞り込む">
+        <button class="key key-all" type="button" data-filter="all" aria-pressed="true">すべて</button>
+        <button class="key key-keyboard" type="button" data-filter="keyboard" aria-pressed="false">キーボード</button>
+        <button class="key key-mouse" type="button" data-filter="mouse" aria-pressed="false">マウス</button>
+        <button class="key key-monitor" type="button" data-filter="monitor" aria-pressed="false">モニター</button>
+        <button class="key key-headset" type="button" data-filter="headset" aria-pressed="false">ヘッドセット</button>
+        <button class="key key-gadget" type="button" data-filter="gadget" aria-pressed="false">小物</button>
+      </div>
+    </section>
+
+    <!-- 記事一覧：新しい記事を足すときは <article> を1つコピーして上に貼る -->
+    <section class="articles" id="articles" aria-labelledby="articles-title">
+      <h2 id="articles-title">新着記事</h2>
+
+      <div class="post-list">
+
+        <article class="post post-featured" data-category="mouse">
+          <a class="post-link" href="posts/minimini.html">
+            <div class="thumb thumb-mouse">
+                <img src="images/minimini.png" alt="レビューしたマウスの写真">
+            </div>
+            <div class="post-body">
+              <p class="post-meta"><span class="tag">マウス</span><time datetime="2026-10-12">2026年10月13日</time></p>
+              <h3>マウスの革命、軽さ、大きさすべての頂点</h3>
+              <p class="post-excerpt">手の小さい人やマウスが重たいと感じる人にぜひおすすめしたい商品を紹介します</p>
+            </div>
+          </a>
+        </article>
+
+        <article class="post" data-category="keyboard">
+          <a class="post-link" href="posts/keybord-review.html">
+            <div class="thumb thumb-keyboard">
+                <img src="images/keybord.png" alt="レビューしたメカニカルキーボードの写真">
+            </div>
+            <div class="post-body">
+              <p class="post-meta"><span class="tag">キーボード</span><time datetime="2026-10-12">2026年10月12日</time></p>
+              <h3>打鍵感で選ぶ、はじめてのメカニカルキーボード</h3>
+              <p class="post-excerpt">赤軸・茶軸・青軸の違いを、実際にタイピングして比べました。事務作業が多い人向けの選び方をまとめています。</p>
+            </div>
+          </a>
+        </article>
+
+        <article class="post" data-category="mouse">
+          <a class="post-link" href="#">
+            <div class="thumb thumb-mouse">
+                <img src="images/mouse.png" alt="レビューしたマウスの写真">
+            </div>
+            <div class="post-body">
+              <p class="post-meta"><span class="tag">マウス</span><time datetime="2026-10-09">2026年10月9日</time></p>
+              <h3>手の大きさ別・疲れにくいマウスの選び方</h3>
+              <p class="post-excerpt">長時間作業で手首が痛くならない形とサイズの目安を紹介します。</p>
+            </div>
+          </a>
+        </article>
+
+        <article class="post" data-category="monitor">
+          <a class="post-link" href="#">
+            <div class="thumb thumb-monitor">
+                <img src="images/monitor.png" alt="レビューしたモニターの写真">
+            </div>
+            <div class="post-body">
+              <p class="post-meta"><span class="tag">モニター</span><time datetime="2026-10-05">2026年10月5日</time></p>
+              <h3>27インチ4Kモニターで作業は変わるのか</h3>
+              <p class="post-excerpt">フルHDから乗り換えて気づいた、見やすさと設置スペースの話。</p>
+            </div>
+          </a>
+        </article>
+
+        <article class="post" data-category="headset">
+          <a class="post-link" href="#">
+            <div class="thumb thumb-headset">
+                <img src="images/headset.png" alt="レビューしたヘッドセットの写真">
+            </div>
+            <div class="post-body">
+              <p class="post-meta"><span class="tag">ヘッドセット</span><time datetime="2026-10-01">2026年10月1日</time></p>
+              <h3>在宅会議向け、2万円以下のヘッドセット比較</h3>
+              <p class="post-excerpt">マイクの聞こえ方と、つけ心地を中心に比べました。</p>
+            </div>
+          </a>
+        </article>
+
+        <article class="post" data-category="gadget">
+          <a class="post-link" href="#">
+            <div class="thumb thumb-gadget">
+                <img src="images/komono.png" alt="レビューした小物の写真">
+            </div>
+            <div class="post-body">
+              <p class="post-meta"><span class="tag">小物</span><time datetime="2026-09-27">2026年9月27日</time></p>
+              <h3>ケーブルを整理したら、机が一回り広くなった</h3>
+              <p class="post-excerpt">1,000円台で試せる、配線まわりの片づけアイテム。</p>
+            </div>
+          </a>
+        </article>
+
+      </div>
+
+      <p class="empty" id="empty-message" hidden>このカテゴリの記事はまだありません。</p>
+    </section>
+
+    <section class="about" id="about" aria-labelledby="about-title">
+      <h2 id="about-title">このブログについて</h2>
+      <p>PC周辺機器を実際に使って、良かった点も気になった点も書くブログです。スペック表だけではわからない使い心地を伝えることを大事にしています。</p>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <p>&copy; 2026 おがわのデスクノート</p>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>

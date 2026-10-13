@@ -1,0 +1,383 @@
+/* ===== デザイン設定（色・文字）===== */
+:root {
+  --mat: #e4e7e1;      /* デスクマットの灰緑 */
+  --paper: #f7f7f3;    /* 紙・キーの白 */
+  --ink: #1b2128;      /* 文字 */
+  --muted: #55606b;    /* 補助文字 */
+  --line: #c6cbc3;     /* 区切り線 */
+  --blue: #2c5bc4;     /* キーボード */
+  --amber: #efb02f;    /* マウス */
+  --slate: #34404d;    /* モニター */
+  --sage: #5f8a73;     /* ヘッドセット */
+  --plum: #7a4e7e;     /* 小物 */
+
+  --font: "Zen Kaku Gothic New", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif;
+  --content: 960px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background: var(--mat);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 1rem;
+  line-height: 1.8;
+}
+
+a {
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 3px solid var(--blue);
+  outline-offset: 3px;
+}
+
+/* ===== ヘッダー ===== */
+.site-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 2rem;
+  max-width: var(--content);
+  margin: 0 auto;
+  padding: 1.25rem 1.25rem 0;
+}
+
+.site-name {
+  font-size: 1.125rem;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.site-nav {
+  display: flex;
+  gap: 1.5rem;
+}
+
+.site-nav a {
+  font-size: 0.9375rem;
+  font-weight: 500;
+  text-decoration: none;
+  color: var(--muted);
+}
+
+.site-nav a:hover {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+/* ===== ヒーロー ===== */
+.hero {
+  max-width: var(--content);
+  margin: 0 auto;
+  padding: 4rem 1.25rem 3rem;
+}
+
+.hero h1 {
+  margin: 0;
+  font-size: clamp(2rem, 6vw, 3.5rem);
+  font-weight: 900;
+  line-height: 1.3;
+  letter-spacing: 0.02em;
+}
+
+
+.hero-lead {
+  max-width: 34em;
+  margin: 1.25rem 0 0;
+  color: var(--muted);
+}
+
+/* キーキャップ風ボタン */
+.keys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 2.25rem;
+}
+
+.key {
+  --key-color: var(--paper);
+  --key-text: var(--ink);
+  --key-edge: #b9bdb5;
+
+  min-width: 5.5rem;
+  padding: 0.7rem 1.25rem 0.8rem;
+  border: 0;
+  border-radius: 10px;
+  background: var(--key-color);
+  color: var(--key-text);
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  line-height: 1.3;
+  cursor: pointer;
+  box-shadow: 0 5px 0 var(--key-edge);
+  transition: transform 0.08s ease, box-shadow 0.08s ease;
+}
+
+.key:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 0 var(--key-edge);
+}
+
+/* 押されている状態：キーが沈む */
+.key:active,
+.key[aria-pressed="true"] {
+  transform: translateY(4px);
+  box-shadow: 0 1px 0 var(--key-edge);
+}
+
+.key[aria-pressed="true"] {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.key-keyboard { --key-color: var(--blue);  --key-text: #fff; --key-edge: #1c3d8c; }
+.key-mouse    { --key-color: var(--amber); --key-text: var(--ink); --key-edge: #b27f14; }
+.key-monitor  { --key-color: var(--slate); --key-text: #fff; --key-edge: #1c242d; }
+.key-headset  { --key-color: var(--sage);  --key-text: #fff; --key-edge: #3d5f4d; }
+.key-gadget   { --key-color: var(--plum);  --key-text: #fff; --key-edge: #4d2e50; }
+
+/* ===== 記事一覧 ===== */
+.articles,
+.about {
+  max-width: var(--content);
+  margin: 0 auto;
+  padding: 2rem 1.25rem;
+}
+
+.articles h2,
+.about h2 {
+  margin: 0 0 1.5rem;
+  font-size: 1.375rem;
+  font-weight: 900;
+}
+
+.post-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.post {
+  background: var(--paper);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.post[hidden] {
+  display: none;
+}
+
+.post-link {
+  display: grid;
+  grid-template-columns: 7rem 1fr;
+  gap: 1.25rem;
+  align-items: center;
+  padding: 1rem;
+  text-decoration: none;
+}
+
+.post-link:hover h3 {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+/* サムネイル：画像を用意するまでは色と一文字で代用 */
+.thumb {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 2rem;
+  font-weight: 900;
+}
+
+.thumb-keyboard { background: var(--blue); }
+.thumb-mouse    { background: var(--amber); color: var(--ink); }
+.thumb-monitor  { background: var(--slate); }
+.thumb-headset  { background: var(--sage); }
+.thumb-gadget   { background: var(--plum); }
+
+.thumb {
+  overflow: hidden;
+}
+
+.thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.post-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.75rem;
+  margin: 0 0 0.25rem;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.tag {
+  padding: 0 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.post h3 {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.post-excerpt {
+  margin: 0.5rem 0 0;
+  font-size: 0.9375rem;
+  color: var(--muted);
+}
+
+/* 先頭の記事は大きく見せる */
+.post-featured .post-link {
+  grid-template-columns: 1fr;
+  gap: 0;
+  padding: 0;
+}
+
+.post-featured .thumb {
+  aspect-ratio: 21 / 8;
+  border-radius: 0;
+  font-size: 4rem;
+}
+
+.post-featured .post-body {
+  padding: 1.25rem 1.5rem 1.5rem;
+}
+
+.post-featured h3 {
+  font-size: 1.5rem;
+}
+
+.empty {
+  padding: 2rem 0;
+  color: var(--muted);
+}
+
+/* ===== このブログについて ===== */
+.about {
+  padding-bottom: 4rem;
+}
+
+.about p {
+  max-width: 36em;
+  margin: 0;
+}
+
+/* ===== フッター ===== */
+.site-footer {
+  border-top: 1px solid var(--line);
+  padding: 1.5rem 1.25rem;
+  text-align: center;
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+.site-footer p {
+  margin: 0;
+}
+
+/* ===== 記事ページ ===== */
+.article-page {
+  max-width: 42rem;
+  margin: 0 auto;
+  padding: 3rem 1.25rem 4rem;
+}
+
+.article-title {
+  margin: 0.5rem 0 0;
+  font-size: clamp(1.625rem, 4.5vw, 2.25rem);
+  font-weight: 900;
+  line-height: 1.4;
+}
+
+.article-image {
+  margin: 2rem 0 0;
+}
+
+.article-image img,
+.article-body img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: 12px;
+}
+
+.article-body {
+  margin-top: 2rem;
+  font-size: 1.0625rem;
+  line-height: 2;
+}
+
+.article-body h2 {
+  margin: 3rem 0 1rem;
+  font-size: 1.375rem;
+  font-weight: 900;
+  line-height: 1.5;
+}
+
+.article-body p {
+  margin: 0 0 1.5rem;
+}
+
+.article-back {
+  margin-top: 3rem;
+}
+
+/* ===== スマホ向け ===== */
+@media (max-width: 560px) {
+  .hero {
+    padding-top: 2.5rem;
+  }
+
+  .post-link {
+    grid-template-columns: 4.5rem 1fr;
+    gap: 1rem;
+  }
+
+  .thumb {
+    font-size: 1.5rem;
+  }
+
+  .post-featured .thumb {
+    aspect-ratio: 16 / 7;
+  }
+}
+
+/* 動きを減らす設定の人向け */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .key {
+    transition: none;
+  }
+}
