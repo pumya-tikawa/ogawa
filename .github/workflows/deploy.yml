@@ -23,12 +23,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # ここから確認用（原因が分かったら消す）
-      - name: Show OIDC subject
-        run: |
-          curl -sH "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | jq -r '.value | split(".")[1] | @base64d | fromjson | .sub'
-      # ここまで
-
       # OIDC で AWS の役割（GitHubDeployRole）を使えるようにする
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
