@@ -1,5 +1,27 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: ogawa-pcsite 静的サイト公開用の環境（S3 + CloudFront）
+Description: ogawa-pcsite 静的サイト公開用の環境（S3 + CloudFront + GitHub Actions 用の権限）
+
+Parameters:
+  GitHubOwner:
+    Type: String
+    Default: pumya-tikawa
+    Description: GitHub のユーザー名
+  GitHubRepo:
+    Type: String
+    Default: ogawa
+    Description: GitHub のリポジトリ名
+  GitHubBranch:
+    Type: String
+    Default: main
+    Description: このブランチに変更が入ったときだけ公開を許可する
+  CreateOidcProvider:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: このAWSアカウントに GitHub 用のIDプロバイダがまだ無ければ true、すでにあれば false
+
+Conditions:
+  CreateProvider: !Equals [!Ref CreateOidcProvider, 'true']
 
 Resources:
   # サイトのファイルを置く S3 バケット（直接は公開しない）
@@ -63,6 +85,54 @@ Resources:
               StringEquals:
                 'AWS:SourceArn': !Sub 'arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${SiteDistribution}'
 
+  # --- ここから GitHub Actions 用の追加分 ---
+
+  # 「GitHub からのログインを信用する」という登録（アカウントに1つだけ作れる）
+  GitHubOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Condition: CreateProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList:
+        - sts.amazonaws.com
+
+  # GitHub Actions が使う役割（このリポジトリの main ブランチからだけ使える）
+  GitHubDeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !If
+                - CreateProvider
+                - !Ref GitHubOidcProvider
+                - !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com'
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                'token.actions.githubusercontent.com:aud': sts.amazonaws.com
+                'token.actions.githubusercontent.com:sub': !Sub 'repo:${GitHubOwner}/${GitHubRepo}:ref:refs/heads/${GitHubBranch}'
+      Policies:
+        - PolicyName: deploy-site
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # S3 のファイルを置き換える
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:DeleteObject
+                Resource: !Sub '${SiteBucket.Arn}/*'
+              - Effect: Allow
+                Action: s3:ListBucket
+                Resource: !GetAtt SiteBucket.Arn
+              # CloudFront のキャッシュを更新する
+              - Effect: Allow
+                Action: cloudfront:CreateInvalidation
+                Resource: !Sub 'arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${SiteDistribution}'
+
 Outputs:
   SiteUrl:
     Description: 公開されたサイトのURL
@@ -73,3 +143,6 @@ Outputs:
   DistributionId:
     Description: CloudFront の ID（deploy.yml で使う）
     Value: !Ref SiteDistribution
+  DeployRoleArn:
+    Description: GitHub Actions が使う役割の ARN（deploy.yml で使う）
+    Value: !GetAtt GitHubDeployRole.Arn
