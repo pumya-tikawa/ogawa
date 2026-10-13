@@ -10,6 +10,14 @@ Parameters:
     Type: String
     Default: ogawa
     Description: GitHub のリポジトリ名
+  GitHubOwnerId:
+    Type: String
+    Default: '338493862'
+    Description: GitHub のユーザーの固有番号（Actions の実行ログに出る repo:ユーザー名@この番号 の部分）
+  GitHubRepoId:
+    Type: String
+    Default: '1416638952'
+    Description: GitHub のリポジトリの固有番号（Actions の実行ログに出る ogawa@この番号 の部分）
   GitHubBranch:
     Type: String
     Default: main
@@ -113,7 +121,7 @@ Resources:
             Condition:
               StringEquals:
                 'token.actions.githubusercontent.com:aud': sts.amazonaws.com
-                'token.actions.githubusercontent.com:sub': !Sub 'repo:${GitHubOwner}/${GitHubRepo}:ref:refs/heads/${GitHubBranch}'
+                'token.actions.githubusercontent.com:sub': !Sub 'repo:${GitHubOwner}@${GitHubOwnerId}/${GitHubRepo}@${GitHubRepoId}:ref:refs/heads/${GitHubBranch}'
       Policies:
         - PolicyName: deploy-site
           PolicyDocument:
@@ -146,3 +154,4 @@ Outputs:
   DeployRoleArn:
     Description: GitHub Actions が使う役割の ARN（deploy.yml で使う）
     Value: !GetAtt GitHubDeployRole.Arn
+    
