@@ -1,0 +1,64 @@
+name: Deploy backend (SAM)
+
+# main ブランチで backend の中身が変わったときに動く。Actions タブから手動で動かすこともできる
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'backend/**'
+      - '.github/workflows/deploy-backend.yml'
+  workflow_dispatch:
+
+# AWS に「GitHub からのログイン証明」を渡すために必要な権限
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      # リポジトリのファイルを取得する
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # template.yaml で指定した Python 3.13 を使えるようにする（sam build に必要）
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      # SAM CLI を使えるようにする
+      - name: Set up SAM
+        uses: aws-actions/setup-sam@v2
+        with:
+          use-installer: true
+
+      # OIDC で AWS の役割（GitHubDeployRole）を使えるようにする
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ap-northeast-1
+
+      # テンプレートの文法チェック
+      - name: Validate
+        working-directory: backend
+        run: sam validate --lint
+
+      # Lambda のコードをビルドする
+      - name: Build
+        working-directory: backend
+        run: sam build
+
+      # AWS に反映する（変更が無いときもエラーにしない）
+      - name: Deploy
+        working-directory: backend
+        run: >
+          sam deploy
+          --stack-name ogawa-pcsite-backend
+          --s3-bucket ${{ secrets.SAM_ARTIFACT_BUCKET }}
+          --capabilities CAPABILITY_IAM
+          --no-confirm-changeset
+          --no-fail-on-empty-changeset

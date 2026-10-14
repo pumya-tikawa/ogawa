@@ -1,0 +1,78 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: 漫画レビューサイト用のAPI（GET/POST /reviews）
+
+Globals:
+  Function:
+    Runtime: python3.13
+    Timeout: 10
+    MemorySize: 128
+    Environment:
+      Variables:
+        TABLE_NAME: !Ref ReviewsTable
+
+Resources:
+  # レビューを保存するテーブル（使った分だけ課金）
+  ReviewsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+
+  # API Gateway（HTTP API）
+  ReviewsApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      CorsConfiguration:
+        AllowOrigins:
+          - '*'          # 最初は全許可。あとでCloudFrontのURLに絞る
+        AllowMethods:
+          - GET
+          - POST
+          - OPTIONS
+        AllowHeaders:
+          - Content-Type
+
+  # レビュー一覧を返す
+  GetReviewsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: get_reviews.lambda_handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref ReviewsTable
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref ReviewsApi
+            Path: /reviews
+            Method: GET
+
+  # レビューを1件保存する
+  PostReviewsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: post_reviews.lambda_handler
+      Policies:
+        - DynamoDBWritePolicy:
+            TableName: !Ref ReviewsTable
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref ReviewsApi
+            Path: /reviews
+            Method: POST
+
+Outputs:
+  ApiUrl:
+    Description: APIのURL（script.js の fetch で使う）
+    Value: !Sub 'https://${ReviewsApi}.execute-api.${AWS::Region}.amazonaws.com/reviews'
