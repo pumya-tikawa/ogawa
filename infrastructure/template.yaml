@@ -27,6 +27,10 @@ Parameters:
     Default: 'true'
     AllowedValues: ['true', 'false']
     Description: このAWSアカウントに GitHub 用のIDプロバイダがまだ無ければ true、すでにあれば false
+  BackendStackName:
+    Type: String
+    Default: ogawa-pcsite-backend
+    Description: backend（SAM）のスタック名。deploy-backend.yml の --stack-name と同じにする
 
 Conditions:
   CreateProvider: !Equals [!Ref CreateOidcProvider, 'true']
@@ -34,6 +38,16 @@ Conditions:
 Resources:
   # サイトのファイルを置く S3 バケット（直接は公開しない）
   SiteBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  # SAM がデプロイ時にコードをアップロードする S3 バケット（公開しない）
+  SamArtifactsBucket:
     Type: AWS::S3::Bucket
     Properties:
       PublicAccessBlockConfiguration:
@@ -141,6 +155,95 @@ Resources:
                 Action: cloudfront:CreateInvalidation
                 Resource: !Sub 'arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${SiteDistribution}'
 
+        # --- ここから backend（SAM）のデプロイ用の追加分 ---
+        # 対象は「スタック名 BackendStackName で始まるもの」だけに絞っている
+        - PolicyName: deploy-backend
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # SAM がコードをアップロードするバケット
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                Resource: !Sub '${SamArtifactsBucket.Arn}/*'
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                  - s3:GetBucketLocation
+                Resource: !GetAtt SamArtifactsBucket.Arn
+              # CloudFormation（SAM の中身はこれで作られる）
+              - Effect: Allow
+                Action:
+                  - cloudformation:CreateChangeSet
+                  - cloudformation:DescribeChangeSet
+                  - cloudformation:ExecuteChangeSet
+                  - cloudformation:DeleteChangeSet
+                  - cloudformation:DescribeStacks
+                  - cloudformation:DescribeStackEvents
+                  - cloudformation:GetTemplate
+                Resource: !Sub 'arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${BackendStackName}/*'
+              # SAM のテンプレート変換（Transform）を使うために必要
+              - Effect: Allow
+                Action: cloudformation:CreateChangeSet
+                Resource: !Sub 'arn:${AWS::Partition}:cloudformation:${AWS::Region}:aws:transform/Serverless-2016-10-31'
+              # Lambda 関数
+              - Effect: Allow
+                Action:
+                  - lambda:CreateFunction
+                  - lambda:DeleteFunction
+                  - lambda:GetFunction
+                  - lambda:GetFunctionConfiguration
+                  - lambda:UpdateFunctionCode
+                  - lambda:UpdateFunctionConfiguration
+                  - lambda:AddPermission
+                  - lambda:RemovePermission
+                  - lambda:TagResource
+                  - lambda:UntagResource
+                  - lambda:ListTags
+                Resource: !Sub 'arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${BackendStackName}-*'
+              # Lambda 用の実行ロール（SAM が自動で作る）
+              - Effect: Allow
+                Action:
+                  - iam:CreateRole
+                  - iam:DeleteRole
+                  - iam:GetRole
+                  - iam:PassRole
+                  - iam:AttachRolePolicy
+                  - iam:DetachRolePolicy
+                  - iam:PutRolePolicy
+                  - iam:DeleteRolePolicy
+                  - iam:GetRolePolicy
+                  - iam:TagRole
+                  - iam:UntagRole
+                  - iam:UpdateAssumeRolePolicy
+                Resource: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${BackendStackName}-*'
+              # API Gateway（HTTP API）
+              - Effect: Allow
+                Action:
+                  - apigateway:GET
+                  - apigateway:POST
+                  - apigateway:PUT
+                  - apigateway:PATCH
+                  - apigateway:DELETE
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}::/apis'
+                  - !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}::/apis/*'
+                  - !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}::/tags/*'
+              # DynamoDB テーブル
+              - Effect: Allow
+                Action:
+                  - dynamodb:CreateTable
+                  - dynamodb:DeleteTable
+                  - dynamodb:DescribeTable
+                  - dynamodb:UpdateTable
+                  - dynamodb:TagResource
+                  - dynamodb:UntagResource
+                  - dynamodb:ListTagsOfResource
+                  - dynamodb:DescribeContinuousBackups
+                  - dynamodb:DescribeTimeToLive
+                Resource: !Sub 'arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${BackendStackName}-*'
+
 Outputs:
   SiteUrl:
     Description: 公開されたサイトのURL
@@ -154,4 +257,6 @@ Outputs:
   DeployRoleArn:
     Description: GitHub Actions が使う役割の ARN（deploy.yml で使う）
     Value: !GetAtt GitHubDeployRole.Arn
-    
+  SamBucketName:
+    Description: SAM がコードをアップロードする S3 バケット名（deploy-backend.yml で使う）
+    Value: !Ref SamArtifactsBucket
