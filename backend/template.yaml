@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: 漫画レビューサイト用のAPI（GET/POST /reviews）
+Description: 記事コメント用のAPI（GET/POST /articles/{articleId}/comments）
 
 Globals:
   Function:
@@ -9,23 +9,27 @@ Globals:
     MemorySize: 128
     Environment:
       Variables:
-        TABLE_NAME: !Ref ReviewsTable
+        TABLE_NAME: !Ref CommentsTable
 
 Resources:
-  # レビューを保存するテーブル（使った分だけ課金）
-  ReviewsTable:
+  # コメントを保存するテーブル（記事ごとに、新しい順で取れる）
+  CommentsTable:
     Type: AWS::DynamoDB::Table
     Properties:
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
-        - AttributeName: id
+        - AttributeName: articleId
+          AttributeType: S
+        - AttributeName: createdAt
           AttributeType: S
       KeySchema:
-        - AttributeName: id
+        - AttributeName: articleId
           KeyType: HASH
+        - AttributeName: createdAt
+          KeyType: RANGE
 
   # API Gateway（HTTP API）
-  ReviewsApi:
+  CommentsApi:
     Type: AWS::Serverless::HttpApi
     Properties:
       CorsConfiguration:
@@ -38,41 +42,41 @@ Resources:
         AllowHeaders:
           - Content-Type
 
-  # レビュー一覧を返す
-  GetReviewsFunction:
+  # 記事ごとのコメント一覧を返す
+  GetCommentsFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: src/
-      Handler: get_reviews.lambda_handler
+      Handler: get_comments.lambda_handler
       Policies:
         - DynamoDBReadPolicy:
-            TableName: !Ref ReviewsTable
+            TableName: !Ref CommentsTable
       Events:
         Api:
           Type: HttpApi
           Properties:
-            ApiId: !Ref ReviewsApi
-            Path: /reviews
+            ApiId: !Ref CommentsApi
+            Path: /articles/{articleId}/comments
             Method: GET
 
-  # レビューを1件保存する
-  PostReviewsFunction:
+  # コメントを1件保存する
+  PostCommentsFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: src/
-      Handler: post_reviews.lambda_handler
+      Handler: post_comments.lambda_handler
       Policies:
         - DynamoDBWritePolicy:
-            TableName: !Ref ReviewsTable
+            TableName: !Ref CommentsTable
       Events:
         Api:
           Type: HttpApi
           Properties:
-            ApiId: !Ref ReviewsApi
-            Path: /reviews
+            ApiId: !Ref CommentsApi
+            Path: /articles/{articleId}/comments
             Method: POST
 
 Outputs:
   ApiUrl:
-    Description: APIのURL（script.js の fetch で使う）
-    Value: !Sub 'https://${ReviewsApi}.execute-api.${AWS::Region}.amazonaws.com/reviews'
+    Description: APIのベースURL（comments.js の fetch で使う）
+    Value: !Sub 'https://${CommentsApi}.execute-api.${AWS::Region}.amazonaws.com'
