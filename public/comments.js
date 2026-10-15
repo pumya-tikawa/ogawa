@@ -1,5 +1,5 @@
 // APIのベースURL（スタックを作り直したら、新しいApiUrlに書き換える）
-const API_BASE = "https://k20km8xvse.execute-api.ap-northeast-1.amazonaws.com";
+const API_BASE = "https://xzct279rgj.execute-api.ap-northeast-1.amazonaws.com";
 
 const MAX_NAME = 30;
 const MAX_BODY = 500;
