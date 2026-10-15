@@ -4,6 +4,8 @@ const API_BASE = "https://k20km8xvse.execute-api.ap-northeast-1.amazonaws.com";
 const MAX_NAME = 30;
 const MAX_BODY = 500;
 
+const DEFAULT_NAME = "名無しのおがわ";
+
 const section = document.getElementById("comments");
 
 if (section) {
@@ -24,7 +26,7 @@ if (section) {
   form.className = "cm-form";
   form.innerHTML = `
     <label>お名前
-      <input type="text" name="name" maxlength="${MAX_NAME}" required>
+      <input type="text" name="name" value="名無しのおがわ"maxlength="${MAX_NAME}">
     </label>
     <label>コメント
       <textarea name="body" rows="4" maxlength="${MAX_BODY}" required></textarea>
@@ -80,7 +82,7 @@ if (section) {
     event.preventDefault();
 
     const payload = {
-      name: form.name.value.trim(),
+      name: form.name.value.trim() || DEFAULT_NAME,
       body: form.body.value.trim(),
     };
 
