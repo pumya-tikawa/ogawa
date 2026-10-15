@@ -381,3 +381,13 @@ a {
     transition: none;
   }
 }
+
+.cm-list { list-style: none; padding: 0; margin: 1rem 0; }
+.cm-item { border-bottom: 1px solid #ddd; padding: 0.8rem 0; }
+.cm-name { font-weight: 700; margin-right: 0.8rem; }
+.cm-date { font-size: 0.85rem; color: #777; }
+.cm-body { margin: 0.4rem 0 0; white-space: pre-wrap; }
+.cm-form label { display: block; margin-bottom: 0.8rem; }
+.cm-form input, .cm-form textarea { display: block; width: 100%; padding: 0.5rem; box-sizing: border-box; font: inherit; }
+.cm-ok { color: #2a7a2a; }
+.cm-error { color: #c0392b; }
