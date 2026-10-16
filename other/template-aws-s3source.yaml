@@ -1,0 +1,473 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: ogawa-pcsite AWS版（S3 + CloudFront + CodePipeline/CodeBuild。ソースは S3 に置いた zip。GitHub も CodeCommit も使わない）
+
+Parameters:
+  SourceObjectKey:
+    Type: String
+    Default: source.zip
+    Description: ソースの zip を置くときのファイル名。この名前で上書きアップロードするとパイプラインが動く
+  BackendStackName:
+    Type: String
+    Default: ogawa-pcsite-aws-backend
+    Description: backend（SAM）のスタック名。GitHub Actions 版（ogawa-pcsite-backend）とは別の名前にする
+
+Resources:
+  # サイトのファイルを置く S3 バケット（直接は公開しない）
+  SiteBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  # SAM がデプロイ時にコードをアップロードする S3 バケット（公開しない）
+  SamArtifactsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  # CodePipeline がステージ間でファイルを受け渡すための S3 バケット（公開しない）
+  PipelineArtifactBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  # CloudFront だけが S3 のファイルを読めるようにするための設定
+  SiteOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub '${AWS::StackName}-oac'
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  # 世界中（日本を含む）に配信する CloudFront
+  SiteDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: ogawa-pcsite-aws
+        DefaultRootObject: index.html
+        HttpVersion: http2and3
+        PriceClass: PriceClass_200
+        Origins:
+          - Id: site-bucket
+            DomainName: !GetAtt SiteBucket.RegionalDomainName
+            OriginAccessControlId: !GetAtt SiteOriginAccessControl.Id
+            S3OriginConfig:
+              OriginAccessIdentity: ''
+        DefaultCacheBehavior:
+          TargetOriginId: site-bucket
+          ViewerProtocolPolicy: redirect-to-https
+          Compress: true
+          # AWS が用意している「CachingOptimized」のキャッシュ設定
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+
+  # 上の CloudFront からの読み取りだけを許可する
+  SiteBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref SiteBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowCloudFrontRead
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub '${SiteBucket.Arn}/*'
+            Condition:
+              StringEquals:
+                'AWS:SourceArn': !Sub 'arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${SiteDistribution}'
+
+  # --- ここから CI/CD（S3 ソース / CodeBuild / CodePipeline）用 ---
+
+  # ソースコードの zip を置く S3 バケット（GitHub の代わり）
+  # CodePipeline のソースにするにはバージョニングが必須
+  SourceBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      VersioningConfiguration:
+        Status: Enabled
+      # ファイルが置かれたことを EventBridge に通知する（パイプライン起動に使う）
+      NotificationConfiguration:
+        EventBridgeConfiguration:
+          EventBridgeEnabled: true
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  # CodeBuild が使う役割（GitHub Actions 版の GitHubDeployRole に相当。OIDC は不要）
+  CodeBuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        # CodeBuild 自体の動作に必要な権限（ログ出力、パイプラインのファイル受け取り）
+        - PolicyName: codebuild-basics
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${AWS::StackName}-*'
+                  - !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${AWS::StackName}-*:*'
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:PutObject
+                Resource: !Sub '${PipelineArtifactBucket.Arn}/*'
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                  - s3:GetBucketLocation
+                Resource: !GetAtt PipelineArtifactBucket.Arn
+        # ここから下は GitHub Actions 版のポリシーと同じ内容
+        - PolicyName: deploy-site
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # S3 のファイルを置き換える
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:DeleteObject
+                Resource: !Sub '${SiteBucket.Arn}/*'
+              - Effect: Allow
+                Action: s3:ListBucket
+                Resource: !GetAtt SiteBucket.Arn
+              # CloudFront のキャッシュを更新する
+              - Effect: Allow
+                Action: cloudfront:CreateInvalidation
+                Resource: !Sub 'arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${SiteDistribution}'
+        # 対象は「スタック名 BackendStackName で始まるもの」だけに絞っている
+        - PolicyName: deploy-backend
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # SAM がコードをアップロードするバケット
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                Resource: !Sub '${SamArtifactsBucket.Arn}/*'
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                  - s3:GetBucketLocation
+                Resource: !GetAtt SamArtifactsBucket.Arn
+              # CloudFormation（SAM の中身はこれで作られる）
+              - Effect: Allow
+                Action:
+                  - cloudformation:CreateChangeSet
+                  - cloudformation:DescribeChangeSet
+                  - cloudformation:ExecuteChangeSet
+                  - cloudformation:DeleteChangeSet
+                  - cloudformation:DescribeStacks
+                  - cloudformation:DescribeStackEvents
+                  - cloudformation:GetTemplate
+                Resource: !Sub 'arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${BackendStackName}/*'
+              # SAM のテンプレート変換（Transform）を使うために必要
+              - Effect: Allow
+                Action: cloudformation:CreateChangeSet
+                Resource: !Sub 'arn:${AWS::Partition}:cloudformation:${AWS::Region}:aws:transform/Serverless-2016-10-31'
+              # Lambda 関数
+              - Effect: Allow
+                Action:
+                  - lambda:CreateFunction
+                  - lambda:DeleteFunction
+                  - lambda:GetFunction
+                  - lambda:GetFunctionConfiguration
+                  - lambda:UpdateFunctionCode
+                  - lambda:UpdateFunctionConfiguration
+                  - lambda:AddPermission
+                  - lambda:RemovePermission
+                  - lambda:TagResource
+                  - lambda:UntagResource
+                  - lambda:ListTags
+                Resource: !Sub 'arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${BackendStackName}-*'
+              # Lambda 用の実行ロール（SAM が自動で作る）
+              - Effect: Allow
+                Action:
+                  - iam:CreateRole
+                  - iam:DeleteRole
+                  - iam:GetRole
+                  - iam:PassRole
+                  - iam:AttachRolePolicy
+                  - iam:DetachRolePolicy
+                  - iam:PutRolePolicy
+                  - iam:DeleteRolePolicy
+                  - iam:GetRolePolicy
+                  - iam:TagRole
+                  - iam:UntagRole
+                  - iam:UpdateAssumeRolePolicy
+                Resource: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${BackendStackName}-*'
+              # API Gateway（HTTP API）
+              - Effect: Allow
+                Action:
+                  - apigateway:GET
+                  - apigateway:POST
+                  - apigateway:PUT
+                  - apigateway:PATCH
+                  - apigateway:DELETE
+                  - apigateway:TagResource
+                  - apigateway:UntagResource
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}::/apis'
+                  - !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}::/apis/*'
+                  - !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}::/tags/*'
+              # DynamoDB テーブル
+              - Effect: Allow
+                Action:
+                  - dynamodb:CreateTable
+                  - dynamodb:DeleteTable
+                  - dynamodb:DescribeTable
+                  - dynamodb:UpdateTable
+                  - dynamodb:TagResource
+                  - dynamodb:UntagResource
+                  - dynamodb:ListTagsOfResource
+                  - dynamodb:DescribeContinuousBackups
+                  - dynamodb:DescribeTimeToLive
+                Resource: !Sub 'arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${BackendStackName}-*'
+
+  # ① サイト用ビルド（deploy.yml に相当）。やることは buildspec-web.yml に書いてある
+  WebBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub '${AWS::StackName}-web'
+      ServiceRole: !GetAtt CodeBuildRole.Arn
+      TimeoutInMinutes: 10
+      Artifacts:
+        Type: CODEPIPELINE
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: buildspec-web.yml
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/amazonlinux-x86_64-standard:5.0
+        EnvironmentVariables:
+          # GitHub Actions 版の secrets.S3_BUCKET_NAME などに相当（自動で入る）
+          - Name: S3_BUCKET_NAME
+            Type: PLAINTEXT
+            Value: !Ref SiteBucket
+          - Name: CLOUDFRONT_DISTRIBUTION_ID
+            Type: PLAINTEXT
+            Value: !Ref SiteDistribution
+
+  # ② backend 用ビルド（deploy-backend.yml に相当）。やることは buildspec-api.yml に書いてある
+  ApiBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub '${AWS::StackName}-api'
+      ServiceRole: !GetAtt CodeBuildRole.Arn
+      TimeoutInMinutes: 30
+      Artifacts:
+        Type: CODEPIPELINE
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: buildspec-api.yml
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        # Python 3.13 が使えるイメージ
+        Image: aws/codebuild/amazonlinux-x86_64-standard:5.0
+        EnvironmentVariables:
+          - Name: SAM_ARTIFACT_BUCKET
+            Type: PLAINTEXT
+            Value: !Ref SamArtifactsBucket
+          - Name: BACKEND_STACK_NAME
+            Type: PLAINTEXT
+            Value: !Ref BackendStackName
+
+  # CodePipeline が使う役割
+  PipelineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codepipeline.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: pipeline-basics
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # ステージ間でファイルを受け渡す
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:PutObject
+                Resource: !Sub '${PipelineArtifactBucket.Arn}/*'
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                  - s3:GetBucketLocation
+                  - s3:GetBucketVersioning
+                Resource: !GetAtt PipelineArtifactBucket.Arn
+              # ソースの zip を S3 から取得する
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                Resource: !Sub '${SourceBucket.Arn}/*'
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                  - s3:GetBucketLocation
+                  - s3:GetBucketVersioning
+                Resource: !GetAtt SourceBucket.Arn
+              # CodeBuild を起動する
+              - Effect: Allow
+                Action:
+                  - codebuild:StartBuild
+                  - codebuild:BatchGetBuilds
+                Resource:
+                  - !GetAtt WebBuildProject.Arn
+                  - !GetAtt ApiBuildProject.Arn
+
+  # zip のアップロードを検知してパイプラインを起動する仕組み（GitHub の接続が自動でやっていた部分）
+  PipelineTriggerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: start-pipeline
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: codepipeline:StartPipelineExecution
+                Resource: !Sub 'arn:${AWS::Partition}:codepipeline:${AWS::Region}:${AWS::AccountId}:${Pipeline}'
+
+  PipelineTriggerRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: ソースの zip が S3 に置かれたらパイプラインを起動する
+      EventPattern:
+        source:
+          - aws.s3
+        detail-type:
+          - Object Created
+        detail:
+          bucket:
+            name:
+              - !Ref SourceBucket
+          object:
+            key:
+              - !Ref SourceObjectKey
+      Targets:
+        - Id: pipeline
+          Arn: !Sub 'arn:${AWS::Partition}:codepipeline:${AWS::Region}:${AWS::AccountId}:${Pipeline}'
+          RoleArn: !GetAtt PipelineTriggerRole.Arn
+
+  # パイプライン本体（S3 の zip → ①と②を並列で実行）
+  Pipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      Name: !Sub '${AWS::StackName}-pipeline'
+      PipelineType: V2
+      RoleArn: !GetAtt PipelineRole.Arn
+      ArtifactStore:
+        Type: S3
+        Location: !Ref PipelineArtifactBucket
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: S3Source
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Provider: S3
+                Version: '1'
+              Configuration:
+                S3Bucket: !Ref SourceBucket
+                S3ObjectKey: !Ref SourceObjectKey
+                # 起動は上の PipelineTriggerRule（EventBridge）が行う
+                PollForSourceChanges: 'false'
+              OutputArtifacts:
+                - Name: SourceOutput
+        # 同じステージで RunOrder が同じアクションは並列に動く
+        - Name: Build
+          Actions:
+            - Name: Web
+              RunOrder: 1
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: '1'
+              Configuration:
+                ProjectName: !Ref WebBuildProject
+              InputArtifacts:
+                - Name: SourceOutput
+            - Name: Api
+              RunOrder: 1
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: '1'
+              Configuration:
+                ProjectName: !Ref ApiBuildProject
+              InputArtifacts:
+                - Name: SourceOutput
+
+Outputs:
+  SiteUrl:
+    Description: 公開されたサイトのURL
+    Value: !Sub 'https://${SiteDistribution.DomainName}'
+  BucketName:
+    Description: ファイルを置く S3 バケット名
+    Value: !Ref SiteBucket
+  DistributionId:
+    Description: CloudFront の ID
+    Value: !Ref SiteDistribution
+  SamBucketName:
+    Description: SAM がコードをアップロードする S3 バケット名
+    Value: !Ref SamArtifactsBucket
+  PipelineName:
+    Description: パイプライン名（CodePipeline のコンソールで探すときに使う）
+    Value: !Ref Pipeline
+  SourceBucketName:
+    Description: ソースの zip を置く S3 バケット名
+    Value: !Ref SourceBucket
+  SourceObjectKey:
+    Description: ソースの zip のファイル名
+    Value: !Ref SourceObjectKey
