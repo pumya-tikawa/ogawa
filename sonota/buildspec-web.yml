@@ -1,0 +1,11 @@
+version: 0.2
+
+# deploy.yml に相当：public フォルダを S3 に反映し、CloudFront のキャッシュを更新する
+# S3_BUCKET_NAME と CLOUDFRONT_DISTRIBUTION_ID は CloudFormation（CodeBuild プロジェクトの環境変数）から渡される
+phases:
+  build:
+    commands:
+      # public から消したファイルは S3 からも消える
+      - aws s3 sync public/ s3://$S3_BUCKET_NAME/ --delete
+      # すぐ新しい内容を見られるようにする
+      - aws cloudfront create-invalidation --distribution-id $CLOUDFRONT_DISTRIBUTION_ID --paths "/*"

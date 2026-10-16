@@ -1,0 +1,28 @@
+version: 0.2
+
+# deploy-backend.yml に相当：SAM で backend をビルドして AWS に反映する
+# SAM_ARTIFACT_BUCKET と BACKEND_STACK_NAME は CloudFormation（CodeBuild プロジェクトの環境変数）から渡される
+phases:
+  install:
+    runtime-versions:
+      # template.yaml で指定した Python 3.13（sam build に必要）
+      python: 3.13
+    commands:
+      # SAM CLI を使えるようにする
+      - pip install aws-sam-cli
+  build:
+    commands:
+      - cd backend
+      # テンプレートの文法チェック
+      - sam validate --lint
+      # Lambda のコードをビルドする
+      - sam build
+      # AWS に反映する（変更が無いときもエラーにしない）
+      - >
+        sam deploy
+        --stack-name $BACKEND_STACK_NAME
+        --s3-bucket $SAM_ARTIFACT_BUCKET
+        --region $AWS_REGION
+        --capabilities CAPABILITY_IAM
+        --no-confirm-changeset
+        --no-fail-on-empty-changeset
